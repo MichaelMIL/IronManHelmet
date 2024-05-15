@@ -1,0 +1,126 @@
+#include <Servo.h>
+#include <Arduino.h>
+#include <FastLED.h>
+#define DATA_PIN 10
+#define NUM_LEDS 2
+
+CRGB leds[NUM_LEDS];
+Servo servo1;
+Servo servo2;
+
+const int enableServosPin = 3;      // the number of the pushbutton pin
+const int buttonPin = 2;            // the number of the pushbutton pin
+int buttonState = 0;                // variable for reading the debounced pushbutton status
+int lastButtonState = LOW;          // variable to store the previous button state
+unsigned long lastDebounceTime = 0; // the last time the button state was toggled
+unsigned long debounceDelay = 50;   // the debounce time in milliseconds
+bool isOpen = false;                // variable to track the state of the servos
+int topPoseOpen = 20;
+int topPoseClose = 165;
+int bottomPoseOpen = 30;
+int bottomPoseClose = 155;
+int topCurrentPos = 0;
+int bottomCurrentPos = 0;
+
+
+
+
+void setup()
+{
+  Serial.begin(115200);
+  servo1.attach(0); // attaches the servo on pin 0
+  servo2.attach(1); // attaches the servo on pin 1
+
+  // initialize the pushbutton pin as an input:
+  pinMode(buttonPin, INPUT_PULLUP);
+  pinMode(enableServosPin, OUTPUT);
+  FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
+  FastLED.setBrightness(64);
+  leds[0] = CRGB::BlueViolet;
+  leds[1] = CRGB::BlueViolet;
+  FastLED.show();
+}
+
+void writeServos(int top, int bottom)
+{
+  digitalWrite(enableServosPin, HIGH);
+  servo1.write(top);
+  servo2.write(bottom);
+  delay(500);
+  digitalWrite(enableServosPin, LOW);
+}
+
+unsigned long lastMillis = 0;
+bool blinkState = false;
+
+void blink(unsigned long delayTime)
+{
+  if (blinkState && millis() - lastMillis > delayTime)
+  {
+    lastMillis = millis();
+    leds[0] = CRGB::BlueViolet;
+    leds[1] = CRGB::BlueViolet;
+    blinkState = false;
+  }
+  else if (!blinkState && millis() - lastMillis > delayTime)
+  {
+    lastMillis = millis();
+    leds[0] = CRGB::Black;
+    leds[1] = CRGB::Black;
+    blinkState = true;
+  }
+  FastLED.show();
+}
+
+bool isInitialized = false;
+unsigned long lastInitMillis = 0;
+
+void loop()
+{
+  if (!isInitialized && millis() - lastInitMillis > 5000)
+  {
+    lastInitMillis = millis();
+    blink(200);
+  }
+  else
+  {
+    leds[0] = CRGB::BlueViolet;
+    leds[1] = CRGB::BlueViolet;
+    FastLED.show();
+  }
+
+  int reading = digitalRead(buttonPin);
+  if (reading != lastButtonState)
+  {
+    lastDebounceTime = millis();
+    lastButtonState = reading;
+  }
+  // Serial.println(reading);
+  if ((millis() - lastDebounceTime) > debounceDelay)
+  {
+    if (reading != buttonState)
+    {
+      buttonState = reading;
+
+      if (buttonState == LOW)
+      {
+        if (isOpen)
+        {
+          Serial.println("Closing the door");
+          topCurrentPos = topPoseClose;
+          bottomCurrentPos = bottomPoseClose;
+          isOpen = false;
+          writeServos(topCurrentPos, bottomCurrentPos);
+        }
+        else
+        {
+          Serial.println("Opening the door");
+          topCurrentPos = topPoseOpen;
+          bottomCurrentPos = bottomPoseOpen;
+          isOpen = true;
+          writeServos(topCurrentPos, bottomCurrentPos);
+        }
+      }
+    }
+  }
+}
